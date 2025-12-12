@@ -1,7 +1,15 @@
-// ESP32-2424S012C with LovyanGFX
+// ESP32-2424S012C Touch Test with CST816D
 #include <Arduino.h>
 #define LGFX_USE_V1
 #include <LovyanGFX.hpp>
+#include <Wire.h>
+
+// CST816D Touch Controller
+#define TOUCH_SDA 4
+#define TOUCH_SCL 5
+#define TOUCH_INT 0
+#define TOUCH_RST 1
+#define CST816D_ADDR 0x15
 
 class LGFX : public lgfx::LGFX_Device
 {
@@ -65,53 +73,134 @@ public:
 
 LGFX lcd;
 
+// CST816D Touch Functions
+bool cst816d_init() {
+  pinMode(TOUCH_RST, OUTPUT);
+  digitalWrite(TOUCH_RST, LOW);
+  delay(10);
+  digitalWrite(TOUCH_RST, HIGH);
+  delay(50);
+  
+  Wire.begin(TOUCH_SDA, TOUCH_SCL);
+  Wire.setClock(400000);
+  
+  // Check if device responds
+  Wire.beginTransmission(CST816D_ADDR);
+  byte error = Wire.endTransmission();
+  
+  if (error == 0) {
+    Serial.println("CST816D detected!");
+    return true;
+  } else {
+    Serial.printf("CST816D not found (error: %d)\n", error);
+    return false;
+  }
+}
+
+bool getTouchPoint(int16_t &x, int16_t &y) {
+  Wire.beginTransmission(CST816D_ADDR);
+  Wire.write(0x00);
+  Wire.endTransmission();
+  
+  Wire.requestFrom(CST816D_ADDR, 7);
+  if (Wire.available() >= 7) {
+    uint8_t data[7];
+    for (int i = 0; i < 7; i++) {
+      data[i] = Wire.read();
+    }
+    
+    // CST816S register format:
+    // 0x02: number of touch points
+    // 0x03: X high byte (bits 3:0)
+    // 0x04: X low byte
+    // 0x05: Y high byte (bits 3:0)
+    // 0x06: Y low byte
+    uint8_t touches = data[2];
+    
+    if (touches > 0 && touches < 10) {
+      x = ((data[3] & 0x0F) << 8) | data[4];
+      y = ((data[5] & 0x0F) << 8) | data[6];
+      return true;
+    }
+  }
+  return false;
+}
+
 void setup() {
   Serial.begin(115200);
   delay(1000);
-  Serial.println("\n=== ESP32-2424S012C LovyanGFX ===");
+  Serial.println("\n=== CST816D Touch Test ===");
   
+  // Initialize display
   lcd.init();
   lcd.setBrightness(255);
-  
-  Serial.println("Display initialized!");
-  
-  lcd.fillScreen(TFT_WHITE);
-  Serial.println("WHITE");
-  delay(1000);
-  
-  lcd.fillScreen(TFT_RED);
-  Serial.println("RED");
-  delay(1000);
-  
-  lcd.fillScreen(TFT_GREEN);
-  Serial.println("GREEN");
-  delay(1000);
-  
-  lcd.fillScreen(TFT_BLUE);
-  Serial.println("BLUE");
-  delay(1000);
-  
   lcd.fillScreen(TFT_BLACK);
   
-  // Draw circles
-  lcd.fillCircle(120, 120, 100, TFT_RED);
-  lcd.fillCircle(120, 120, 60, TFT_GREEN);
-  lcd.fillCircle(120, 120, 30, TFT_BLUE);
-  
-  // Text
   lcd.setTextColor(TFT_WHITE);
-  lcd.setTextSize(3);
-  lcd.setCursor(50, 100);
-  lcd.println("HELLO!");
-  
   lcd.setTextSize(2);
-  lcd.setCursor(30, 140);
-  lcd.setTextColor(TFT_YELLOW);
-  lcd.println("LovyanGFX!");
+  lcd.setCursor(20, 20);
+  lcd.println("Touch Test");
   
-  Serial.println("Complete!");
+  // Initialize touch
+  if (cst816d_init()) {
+    lcd.setCursor(20, 50);
+    lcd.setTextColor(TFT_GREEN);
+    lcd.println("Touch OK!");
+    Serial.println("Touch initialized successfully");
+  } else {
+    lcd.setCursor(20, 50);
+    lcd.setTextColor(TFT_RED);
+    lcd.println("Touch ERROR");
+    Serial.println("Touch initialization failed");
+  }
+  
+  lcd.setCursor(20, 100);
+  lcd.setTextColor(TFT_YELLOW);
+  lcd.setTextSize(1);
+  lcd.println("Touch screen anywhere");
+  
+  delay(1000);
 }
 
+int lastX = -1;
+int lastY = -1;
+
 void loop() {
-  delay(1000);
+  int16_t x, y;
+  
+  if (getTouchPoint(x, y)) {
+    
+    // Clear previous touch indicator
+    if (lastX >= 0 && lastY >= 0) {
+      lcd.fillCircle(lastX, lastY, 8, TFT_BLACK);
+    }
+    
+    // Draw new touch indicator
+    lcd.fillCircle(x, y, 8, TFT_RED);
+    lcd.drawCircle(x, y, 10, TFT_WHITE);
+    
+    // Display coordinates
+    lcd.fillRect(0, 200, 240, 40, TFT_BLACK);
+    lcd.setTextColor(TFT_CYAN);
+    lcd.setTextSize(2);
+    lcd.setCursor(20, 210);
+    lcd.printf("X:%3d Y:%3d", x, y);
+    
+    lastX = x;
+    lastY = y;
+    
+    delay(50);
+  } else {
+    // No touch detected
+    if (lastX >= 0) {
+      // Clear touch indicator after release
+      delay(500);
+      lcd.fillCircle(lastX, lastY, 10, TFT_BLACK);
+      lcd.fillRect(0, 200, 240, 40, TFT_BLACK);
+      lastX = -1;
+      lastY = -1;
+    }
+  }
+  
+  delay(10);
 }
