@@ -1,0 +1,17 @@
+{
+	"folders": [
+		{
+			"name": "HildesTidsDings",
+			"path": "."
+		},
+		{
+			"name": "3.2inch_ESP32-2432S032",
+			"path": "../../Downloads/3.2inch_ESP32-2432S032"
+		},
+		{
+			"name": "project_bundle",
+			"path": "../../Downloads/project_bundle"
+		}
+	],
+	"settings": {}
+}

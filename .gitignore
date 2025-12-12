@@ -1,0 +1,18 @@
+# PlatformIO
+.pio/
+.vscode/
+.clang_complete
+.gcc-flags.json
+
+# Reference files (too large)
+reference/
+
+# Build artifacts
+*.o
+*.a
+*.bin
+*.elf
+
+# OS files
+.DS_Store
+Thumbs.db
